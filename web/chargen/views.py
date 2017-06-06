@@ -47,8 +47,9 @@ def creating(request):
     #unloggedin._create_character(self, foobar, settings.BASE_CHARACTER_TYPECLASS, settings.DEFAULT_HOME, settings.PERMISSION_PLAYER_DEFAULT)
     if request.method == 'POST':
         myform = request.POST
-        print(request.POST)
-        print(myform)
+        test = myform['validation']
+        if test.lower() != "june":
+            return HttpResponseRedirect('/chargen')
         fields = myform['name']
         pwd = myform['password']
         circuit = create.create_player(fields, email="test@test.com", password=pwd, typeclass=settings.BASE_PLAYER_TYPECLASS)

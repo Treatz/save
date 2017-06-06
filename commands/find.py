@@ -1,53 +1,53 @@
-from evennia.commands.default.muxcommand import MuxCommand
+from evennia import default_cmds
 
 
-class CmdFind(MuxCommand):
+class CmdFind(default_cmds.MuxCommand):
     key = "+locate"
     locks = "cmd:all()"
+
+    maxdepth = 4
+
     def func(self):
-        skip = 1
-        for ishere in self.caller.location.contents:
-            if self.args == ishere.key:
-                self.msg("It is right here!\n")
-                skip = 0
+        """confirms the target and initiates the search"""
 
-        if skip:
-            for arg in self.caller.location.exits:
-                matches = [obj for obj in arg.destination.contents if not obj.destination and self.args == obj.key]
-                if matches:
-                    self.msg("You sense it is %s. \n" % arg)
-                    return
-                else:
-                    for mynxt in arg.destination.exits:
-                        matches2 = [obj for obj in mynxt.destination.contents if not obj.destination and self.args == obj.key]
-                        if matches2:
-                            self.msg("You sense it is %s. \n" % arg)
-                            return
-                        else:
-                            for mynxt2 in mynxt.destination.exits:
-                                matches3 = [obj for obj in mynxt2.destination.contents if not obj.destination and self.args == obj.key]
-                                if matches3:
-                                    self.msg("You sense it is %s. \n" % arg)
-                                    return
-                                else:
-                                    for mynxt3 in mynxt2.destination.exits:
-                                        matches4 = [obj for obj in mynxt3.destination.contents if not obj.destination and self.args == obj.key]
-                                        if matches4:
-                                            self.msg("You sense it is %s. \n" % arg)
-                                            return
+        # save the target object onto the command
+        # this will use Evennia's default multimatch handling if more than one object matches
+        self.target = self.caller.search(self.args, global_search=True)
 
-                                        else:
-                                            for mynxt4 in mynxt3.destination.exits:
-                                                matches5 = [obj for obj in mynxt4.destination.contents if not obj.destination and self.args == obj.key]
-                                                if matches5:
-                                                    self.msg("You sense it is %s. \n" % arg)
-                                                    return
-                                            else:
-                                                for mynxt5 in mynxt4.destination.exits:
-                                                    matches6 = [obj for obj in mynxt5.destination.contents if not obj.destination and self.args == obj.key]
-                                                    if matches6:
-                                                        self.msg("You sense it is %s. \n" % arg)
-                                                        return
-                                                else:
-                                                    self.msg("You don't sense anything.")
-                                                    return
+        # initialize a list to store rooms we've visited
+        self.visited = []
+
+        # now start the search, passing in depth=0
+        if not self._searcher(self.caller.location, 0):
+            # give the 'not found' message
+            self.caller.msg("You are unable to determine which way to go.")
+
+    def _searcher(self, room, depth):
+        """Searches surrounding rooms recursively for an object"""
+
+        # first, record that we've been here
+        self.visited.append(room)
+
+        # our end condition is either when the item is found...
+        if self.target in room.contents:
+            if depth == 0:
+                self.caller.msg("It is right here!")
+            else:
+                self.caller.msg("({})You sense it is {}".format(depth, self.direction))
+            return True
+
+        # or we have traveled `maxdepth` rooms away
+        if depth > self.maxdepth:
+            return False
+
+        # it's not in the current room, so loop through the exits and check them,
+        # skipping rooms we've already visited
+        exits = [exit for exit in room.exits if exit.destination not in self.visited]
+        for next in exits:
+            if depth == 0:  # we only want to return the exit out of the current room
+                self.direction = next.key
+            if self._searcher(next.destination, depth + 1):  # if we found the object, stop searching
+                return True
+
+        # we've checked all the exits, so return false
+        return False
